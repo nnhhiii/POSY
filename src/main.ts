@@ -1,21 +1,21 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { MicroserviceOptions, Transport } from '@nestjs/microservices';
-import { join } from 'path';
 import { ValidationPipe } from '@nestjs/common';
+import { AppConfigService } from './config/app/config.service';
+import logger from './logger/logger.config';
+import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-
-  app.connectMicroservice<MicroserviceOptions>({
-    transport: Transport.GRPC,
-    options: {
-      package: 'pos.category',
-      protoPath: join(__dirname, 'proto/category.proto'),
-      url: '0.0.0.0:50051',
-    },
+  const app = await NestFactory.create(AppModule, {
+    logger,
   });
+  const appConfig = app.get(AppConfigService);
 
+  app.use(cookieParser()); // Middleware to parse cookies
+  app.use(helmet()); // Middleware to set security-related HTTP headers
+
+  // Global validation pipe for DTO validation
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -24,7 +24,6 @@ async function bootstrap() {
     }),
   );
 
-  await app.startAllMicroservices();
-  await app.listen(3000);
+  await app.listen(appConfig.port);
 }
 bootstrap();

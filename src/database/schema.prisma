@@ -1,0 +1,42 @@
+generator client {
+  provider = "prisma-client-js"
+  // output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  username           String    @unique
+  email              String    @unique
+  phone              String?
+  password_hash      String?
+  full_name          String
+  role               String
+  is_active          Boolean   @default(true)
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @default(now()) @updatedAt
+  reset_code         String?
+  reset_code_exp     DateTime?
+  reset_token        String?
+  reset_token_exp    DateTime?
+  refresh_token_hash String?
+  is_deleted         Boolean   @default(false)
+  deleted_at         DateTime?
+
+  @@map("users")
+}
+
+model Category {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String
+  slug        String   @unique
+  description String?
+  is_active   Boolean  @default(false)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @default(now()) @updatedAt
+
+  @@map("categories")
+}
