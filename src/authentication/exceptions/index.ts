@@ -5,3 +5,6 @@ export * from './InvalidResetTokenException';
 export * from './ResetTokenHasExpiredException';
 export * from './InvalidRefreshTokenException';
 export * from './RefreshTokenHasExpiredException';
+export * from './AccountLockedException';
+export * from './InvalidAccessTokenException';
+export * from './AccessTokenHasExpiredException';

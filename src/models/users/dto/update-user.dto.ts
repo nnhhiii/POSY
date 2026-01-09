@@ -1,19 +1,16 @@
-import { IsNotEmpty, IsString, Matches } from 'class-validator';
+import { IsOptional, IsString } from 'class-validator';
+import { IsValidPhoneNumber, IsValidRole } from '../../../common/decorators';
 
 export class UpdateUserDto {
-  @IsString()
-  @IsNotEmpty()
-  id: string;
-
+  @IsOptional()
   @IsString()
   fullName?: string;
 
-  @IsString()
-  @Matches(/(?:\+84|0084|0)[235789][0-9]{1,2}[0-9]{7}(?:\D+|$)/g, {
-    message: 'Phone number is not valid.',
-  })
+  @IsOptional()
+  @IsValidPhoneNumber()
   phone?: string;
 
-  @IsString()
+  @IsOptional()
+  @IsValidRole()
   role?: string;
 }

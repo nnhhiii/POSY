@@ -20,6 +20,7 @@ import { Request, Response } from 'express';
 import { DeviceContext } from '../common/interfaces';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import {
+  AccountLockedException,
   InvalidCredentialsException,
   InvalidRefreshTokenException,
   InvalidResetCodeException,
@@ -80,6 +81,8 @@ export class AuthController {
     } catch (e) {
       if (e instanceof InvalidCredentialsException) {
         throw new BadRequestException(e.message);
+      } else if (e instanceof AccountLockedException) {
+        throw new UnauthorizedException(e.message);
       } else {
         this.logger.error(e); // Log the error for debugging
         throw new InternalServerErrorException(

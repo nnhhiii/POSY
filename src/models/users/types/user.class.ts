@@ -17,5 +17,7 @@ export class User {
     public createdAt: Date | null,
     public updatedAt: Date | null,
     public deletedAt: Date | null,
+    public failedLoginAttempts: number = 0,
+    public lockoutExpiresAt: Date | null,
   ) {}
 }

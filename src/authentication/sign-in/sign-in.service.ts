@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { UserRepository } from '../../models/users/repositories';
 import { SignInDto } from '../dto';
-import { InvalidCredentialsException } from '../exceptions';
+import {
+  AccountLockedException,
+  InvalidCredentialsException,
+} from '../exceptions';
 import { hash, verifyHash } from '../../common/utilities/hash.util';
 import { JwtPayload, AuthTokensSchema } from '../interfaces';
 import { User } from '../../models/users/types/user.class';
@@ -29,14 +32,32 @@ export class SignInService {
     // Find the user by username
     const user = await this.userRepository.findByUsername(username);
 
-    // If user is not found, throw an exception
-    if (!user) {
+    // If user not found or has been deleted/disabled, throw invalid credentials exception
+    if (!user || user.isDeleted || !user.isActive) {
       throw new InvalidCredentialsException();
+    }
+
+    // Check if the account is locked due to too many failed login attempts
+    if (user.lockoutExpiresAt && user.lockoutExpiresAt > new Date()) {
+      throw new AccountLockedException(
+        'Account is temporarily locked due to multiple failed sign-in attempts. Please try again later.',
+      );
     }
 
     // Verify the provided password with the stored password hash
     const pwMatches = await verifyHash(user.passwordHash!, password);
     if (!pwMatches) {
+      user.failedLoginAttempts++;
+      const { max, lockTime } = authConfig.signIn.attempt;
+      // If maximum failed attempts reached, lock the account
+      if (user.failedLoginAttempts >= max) {
+        user.failedLoginAttempts = 0;
+        user.lockoutExpiresAt = new Date(Date.now() + lockTime * 60 * 1000);
+      }
+      await this.userRepository.updateUserById(user.id!, {
+        failedLoginAttempts: user.failedLoginAttempts,
+        lockoutExpiresAt: user.lockoutExpiresAt,
+      });
       throw new InvalidCredentialsException();
     }
 
@@ -45,8 +66,12 @@ export class SignInService {
 
     // Store the hashed refresh token in the database
     const refresh_token_hash = await hash(refresh_token);
+
+    // Update the user's failed login attempts and refresh token hash
     await this.userRepository.updateUserByEmail(user.email, {
       refreshTokenHash: refresh_token_hash,
+      failedLoginAttempts: 0,
+      lockoutExpiresAt: null,
     });
 
     // Calculate expires_in (in seconds)

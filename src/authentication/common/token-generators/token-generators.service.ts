@@ -4,6 +4,8 @@ import { JwtConfigService } from '../../../config/jwt/config.service';
 import { authConfig } from '../../auth.config';
 import { JsonWebTokenError, TokenExpiredError } from 'jsonwebtoken';
 import {
+  AccessTokenHasExpiredException,
+  InvalidAccessTokenException,
   InvalidRefreshTokenException,
   RefreshTokenHasExpiredException,
 } from '../../exceptions';
@@ -86,6 +88,36 @@ export class TokenGeneratorsService {
         throw new InvalidRefreshTokenException();
       } else if (e instanceof TokenExpiredError) {
         throw new RefreshTokenHasExpiredException();
+      }
+      throw e;
+    }
+  }
+
+  /**
+   * Verifies and decodes a JWT access token, handling all error scenarios and mapping them to custom exceptions.
+   *
+   * This method checks the validity and integrity of the provided JWT access token using the configured access token secret.
+   * If the token is valid and not expired, it returns the decoded payload (claims). If the token is invalid, expired, or has been tampered with,
+   * it throws a custom exception: InvalidAccessTokenException for invalid tokens, and AccessTokenHasExpiredException for expired tokens.
+   * This is typically used to authenticate requests and authorize access to protected resources.
+   *
+   * @template T - The expected shape of the decoded payload (defaults to any object).
+   * @param {string} token - The JWT access token to verify and decode.
+   * @returns {Promise<T>} The decoded payload of the access token if verification is successful.
+   * @throws {InvalidAccessTokenException} If the token is invalid, malformed, or has been tampered with.
+   * @throws {AccessTokenHasExpiredException} If the token is expired.
+   * @throws {Error} For unexpected internal errors during token verification.
+   */
+  async verifyAccessToken<T extends object = any>(token: string): Promise<T> {
+    try {
+      return await this.jwtService.verifyAsync(token, {
+        secret: this.accessTokenSecure,
+      });
+    } catch (e) {
+      if (e instanceof JsonWebTokenError) {
+        throw new InvalidAccessTokenException();
+      } else if (e instanceof TokenExpiredError) {
+        throw new AccessTokenHasExpiredException();
       }
       throw e;
     }
