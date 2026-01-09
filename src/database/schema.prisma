@@ -8,23 +8,28 @@ datasource db {
 }
 
 model User {
-  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  username           String    @unique
-  email              String    @unique
-  phone              String?
-  password_hash      String?
-  full_name          String
-  role               String
-  is_active          Boolean   @default(true)
-  created_at         DateTime  @default(now())
-  updated_at         DateTime  @default(now()) @updatedAt
-  reset_code         String?
-  reset_code_exp     DateTime?
-  reset_token        String?
-  reset_token_exp    DateTime?
-  refresh_token_hash String?
-  is_deleted         Boolean   @default(false)
-  deleted_at         DateTime?
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  username              String    @unique
+  email                 String    @unique
+  phone                 String?
+  password_hash         String?
+  full_name             String
+  role                  String
+  is_active             Boolean   @default(true)
+  created_at            DateTime  @default(now())
+  updated_at            DateTime  @default(now()) @updatedAt
+  reset_code            String?
+  reset_code_exp        DateTime?
+  reset_token           String?
+  reset_token_exp       DateTime?
+  refresh_token_hash    String?
+  is_deleted            Boolean   @default(false)
+  deleted_at            DateTime?
+  failed_login_attempts Int       @default(0)
+  lockout_expires_at    DateTime?
+
+  // Relations
+  activity_log ActivityLog[]
 
   @@map("users")
 }
@@ -39,4 +44,24 @@ model Category {
   updated_at  DateTime @default(now()) @updatedAt
 
   @@map("categories")
+}
+
+model ActivityLog {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String   @db.Uuid
+  action     String   @db.VarChar(100)
+  entity     String?  @db.VarChar(100) // e.g., "USER", "CATEGORY"
+  entity_id  String?  @db.Uuid
+  changes    Json?
+  ip_address String?  @db.VarChar(45)
+  user_agent String? // e.g., browser or client info
+  created_at DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [user_id], references: [id])
+
+  @@index([user_id])
+  @@index([entity, entity_id])
+  @@index([created_at])
+  @@map("activity_logs")
 }

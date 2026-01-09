@@ -15,6 +15,10 @@ import { AuthorizationModule } from './authorization/authorization.module';
 import { MyProfileModule } from './my-profile/my-profile.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { ActivityLogModule } from './models/activity-log/activity-log.module';
+import { CommonModule } from './common/common.module';
+import { APP_INTERCEPTOR } from '@nestjs/core';
+import { ActivityLogInterceptor } from './common/interceptors/activity-log.interceptor';
 
 @Module({
   imports: [
@@ -31,6 +35,14 @@ import { ThrottlerModule } from '@nestjs/throttler';
     LoggerModule,
     AuthorizationModule,
     MyProfileModule,
+    ActivityLogModule,
+    CommonModule,
+  ],
+  providers: [
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: ActivityLogInterceptor,
+    },
   ],
 })
 export class AppModule {
