@@ -19,5 +19,9 @@ export const authConfig = {
     refreshToken: {
       expire: 7, // Expiry time in days for the refresh token
     },
+    attempt: {
+      max: 5, // Maximum number of sign-in attempts
+      lockTime: 15, // Lock time in minutes after reaching max attempts
+    },
   },
 };

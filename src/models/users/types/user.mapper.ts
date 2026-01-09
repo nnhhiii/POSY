@@ -22,6 +22,8 @@ export class UserMapper {
       prismaUser.created_at,
       prismaUser.updated_at,
       prismaUser.deleted_at,
+      prismaUser.failed_login_attempts,
+      prismaUser.lockout_expires_at,
     );
   }
 
@@ -53,6 +55,8 @@ export class UserMapper {
       created_at: domainUser.createdAt ?? new Date(),
       updated_at: domainUser.updatedAt ?? new Date(),
       deleted_at: domainUser.deletedAt,
+      failed_login_attempts: domainUser.failedLoginAttempts ?? 0,
+      lockout_expires_at: domainUser.lockoutExpiresAt ?? null,
       ...(domainUser.id ? { id: domainUser.id } : {}),
     };
   }

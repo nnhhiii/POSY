@@ -3,6 +3,7 @@ import { UserRepository } from '../repositories';
 import { User } from '@prisma/client';
 import { UserNotFoundException } from '../exceptions';
 import { hash } from '../../../common/utilities/hash.util';
+import { UnnecessaryOperationException } from '../../../common/exceptions';
 
 @Injectable()
 export class UpdateUserService {
@@ -11,12 +12,13 @@ export class UpdateUserService {
   /**
    * Updates a user's information in the database.
    *
+   * @param {string} id - The unique identifier of the user to be updated.
    * @param {Partial<User>} updatedData - An object containing the fields to update for the user. Must include the user's id.
    * @returns {Promise<User>} The updated user object.
    * @throws {Error} If the update operation fails or the user id is not provided.
    */
-  async updateUser(updatedData: Partial<User>) {
-    return this.userRepository.updateUserById(updatedData.id!, updatedData);
+  async updateUser(id: string, updatedData: Partial<User>) {
+    return this.userRepository.updateUserById(id, updatedData);
   }
 
   /**
@@ -33,6 +35,32 @@ export class UpdateUserService {
     user.isActive = !user.isActive;
     await this.userRepository.updateUserByEmail(userId, {
       isActive: user.isActive,
+    });
+  }
+
+  /**
+   * Unlocks a user's account by resetting their failed login attempts and clearing the lockout expiration.
+   *
+   * This method finds the user by their unique identifier. If the user exists, it resets the `failedLoginAttempts`
+   * to 0 and sets `lockoutExpiresAt` to `null`, effectively unlocking the account and allowing the user to attempt
+   * to log in again. If the user does not exist, a `UserNotFoundException` is thrown.
+   *
+   * @param {string} userId - The unique identifier of the user to unlock.
+   * @returns {Promise<void>} Resolves when the user's account has been unlocked.
+   * @throws {UserNotFoundException} If no user is found with the provided ID.
+   * @throws {UnnecessaryOperationException} If the user account is not locked.
+   */
+  async unlockUser(userId: string): Promise<void> {
+    const user = await this.userRepository.findById(userId);
+    if (!user) throw new UserNotFoundException();
+
+    if (user.failedLoginAttempts === 0 && !user.lockoutExpiresAt) {
+      throw new UnnecessaryOperationException('User account is not locked.');
+    }
+
+    await this.userRepository.updateUserById(userId, {
+      failedLoginAttempts: 0,
+      lockoutExpiresAt: null,
     });
   }
 

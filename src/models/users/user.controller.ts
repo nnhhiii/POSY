@@ -15,7 +15,10 @@ import {
 import { CreateUserService } from './create-user/create-user.service';
 import { UpdateUserService } from './update-user/update-user.service';
 import { User } from './types/user.class';
-import { DuplicateEntryException } from '../../common/exceptions';
+import {
+  DuplicateEntryException,
+  UnnecessaryOperationException,
+} from '../../common/exceptions';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import {
   CreateUserDto,
@@ -160,13 +163,13 @@ export class UserController {
     }
   }
 
-  @Put('')
+  @Put(':id')
   @Roles(Role.ADMIN, Role.MANAGER)
   @PreventManagerAdminAccess('id')
   @UseGuards(AuthGuard('jwt'), RoleGuard, PreventManagerAdminAccessGuard)
-  async updateUser(@Body() dto: UpdateUserDto) {
+  async updateUser(@Query('id') id: string, @Body() dto: UpdateUserDto) {
     try {
-      return this.updateUserService.updateUser(dto);
+      return this.updateUserService.updateUser(id, dto);
     } catch (e) {
       if (e instanceof UserNotFoundException) {
         throw new BadRequestException(e.message);
@@ -243,6 +246,30 @@ export class UserController {
       return { message: 'User has been successfully deleted.' };
     } catch (e) {
       if (e instanceof UserNotFoundException) {
+        throw new BadRequestException(e.message);
+      } else if (e instanceof BadRequestException) {
+        throw e;
+      }
+      this.logger.error(e);
+      throw new InternalServerErrorException(
+        'An error occurred while processing your request.',
+      );
+    }
+  }
+
+  @Post(':id/unlock')
+  @Roles(Role.ADMIN, Role.MANAGER)
+  @PreventManagerAdminAccess('id')
+  @UseGuards(AuthGuard('jwt'), RoleGuard, PreventManagerAdminAccessGuard)
+  async unlockUser(@Query('id') id: string) {
+    try {
+      await this.updateUserService.unlockUser(id);
+      return { message: 'User account has been successfully unlocked.' };
+    } catch (e) {
+      if (
+        e instanceof UserNotFoundException ||
+        e instanceof UnnecessaryOperationException
+      ) {
         throw new BadRequestException(e.message);
       } else if (e instanceof BadRequestException) {
         throw e;

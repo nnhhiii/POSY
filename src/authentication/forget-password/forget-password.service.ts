@@ -25,6 +25,15 @@ export class ForgetPasswordService {
     subject: string,
     deviceContext: DeviceContext,
   ): Promise<void> {
+    // Check if the account has been deleted or disabled
+    const user = await this.userRepository.findByEmail(email);
+    if (user?.isDeleted || !user?.isActive) {
+      this.logger.debug(
+        `Password reset requested for deleted or disabled account: ${email}`,
+      );
+      return;
+    }
+
     const { code, expiresIn } = this.generateResetCode();
 
     try {
