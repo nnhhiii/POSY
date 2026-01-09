@@ -57,10 +57,7 @@ export class MyProfileController {
     const userId = (req.user as JwtPayload).sub;
 
     try {
-      // Ensure the user can only update their own profile
-      dto.id = userId;
-
-      const updatedUser = await this.updateUserService.updateUser(dto);
+      const updatedUser = await this.updateUserService.updateUser(userId, dto);
       return plainToInstance(UserDetailedResponseDto, updatedUser, {
         excludeExtraneousValues: true,
       });
