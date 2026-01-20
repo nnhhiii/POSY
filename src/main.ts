@@ -5,12 +5,24 @@ import { AppConfigService } from './config/app/config.service';
 import logger from './logger/logger.config';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     logger,
   });
   const appConfig = app.get(AppConfigService);
+
+  //------------------------- Swagger Setup -------------------------//
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('Internal API')
+    .setDescription('API documentation for internal services')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('docs', app, document);
+  //------------------------------------------------------------------//
 
   app.use(cookieParser()); // Middleware to parse cookies
   app.use(helmet()); // Middleware to set security-related HTTP headers
@@ -21,6 +33,9 @@ async function bootstrap() {
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
+      transformOptions: {
+        enableImplicitConversion: true,
+      },
     }),
   );
 

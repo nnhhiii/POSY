@@ -10,4 +10,13 @@ export class CategoryPreviewResponseDto {
 
   @Expose()
   isActive: boolean;
+
+  @Expose()
+  slug: string;
+
+  @Expose()
+  createdAt: Date;
+
+  @Expose()
+  updatedAt: Date;
 }

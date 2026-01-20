@@ -6,7 +6,7 @@ import { CategoryNotFoundException } from '../exceptions';
 
 @Injectable()
 export class GetCategoriesService {
-  constructor(private readonly categoryRepository: CategoryRepository) { }
+  constructor(private readonly categoryRepository: CategoryRepository) {}
 
   /**
    * Retrieves a paginated list of categories.

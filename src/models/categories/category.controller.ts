@@ -48,7 +48,7 @@ export class CategoryController {
     private readonly createCategoryService: CreateCategoryService,
     private readonly updateCategoryService: UpdateCategoryService,
     private readonly deleteCategoryService: DeleteCategoryService,
-  ) { }
+  ) {}
 
   @Get(':id')
   @Roles(Role.MANAGER, Role.ADMIN)

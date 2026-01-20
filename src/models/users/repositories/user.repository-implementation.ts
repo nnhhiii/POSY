@@ -16,7 +16,7 @@ export class UserRepositoryImpl implements UserRepository {
   private readonly pageDefault = paginationConfig.default.page;
   private readonly pageSizeDefault = paginationConfig.default.pageSize;
 
-  constructor(private readonly prismaService: PrismaService) { }
+  constructor(private readonly prismaService: PrismaService) {}
 
   /**
    * Finds a user by their unique ID.
@@ -218,12 +218,7 @@ export class UserRepositoryImpl implements UserRepository {
       this.prismaService.user.count({ where: whereClause }),
     ]);
 
-    return buildPage(
-      users.map(UserMapper.toDomain),
-      page,
-      pageSize,
-      total,
-    );
+    return buildPage(users.map(UserMapper.toDomain), page, pageSize, total);
   }
 
   async clearExpiredResetCredentials(date: Date): Promise<number> {

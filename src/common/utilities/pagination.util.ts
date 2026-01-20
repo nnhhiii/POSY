@@ -1,4 +1,4 @@
-import { Page } from "../interfaces";
+import { Page } from '../interfaces';
 
 export function buildPage<T>(
   items: T[],

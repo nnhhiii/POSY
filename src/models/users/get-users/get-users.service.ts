@@ -5,7 +5,7 @@ import { UserNotFoundException } from '../exceptions';
 
 @Injectable()
 export class GetUsersService {
-  constructor(private userRepository: UserRepository) { }
+  constructor(private userRepository: UserRepository) {}
 
   /**
    * Retrieves a user by their unique ID.

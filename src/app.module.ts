@@ -19,6 +19,8 @@ import { ActivityLogModule } from './models/activity-log/activity-log.module';
 import { CommonModule } from './common/common.module';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ActivityLogInterceptor } from './common/interceptors/activity-log.interceptor';
+import { PromotionModule } from './models/promotions/promotion.module';
+import { ProductModule } from './models/products/product.module';
 
 @Module({
   imports: [
@@ -37,12 +39,14 @@ import { ActivityLogInterceptor } from './common/interceptors/activity-log.inter
     MyProfileModule,
     ActivityLogModule,
     CommonModule,
+    PromotionModule,
+    ProductModule,
   ],
   providers: [
-    {
-      provide: APP_INTERCEPTOR,
-      useClass: ActivityLogInterceptor,
-    },
+    // {
+    //   provide: APP_INTERCEPTOR,
+    //   useClass: ActivityLogInterceptor,
+    // },
   ],
 })
 export class AppModule {

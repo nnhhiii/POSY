@@ -22,9 +22,9 @@ export class CategoryMapper {
     }
 
     const slug =
-    domainCategory.slug && domainCategory.slug.trim() !== ''
-      ? domainCategory.slug
-      : getSlug(domainCategory.name);
+      domainCategory.slug && domainCategory.slug.trim() !== ''
+        ? domainCategory.slug
+        : getSlug(domainCategory.name);
 
     return {
       name: domainCategory.name,

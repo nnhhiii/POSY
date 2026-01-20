@@ -6,9 +6,9 @@ export class CategoryDetailedResponseDto extends CategoryPreviewResponseDto {
   @Expose()
   description: string;
 
-  @Expose()
-  createdAt: string;
-
-  @Expose()
-  updatedAt: string;
+  // @Expose()
+  // createdAt: string;
+  //
+  // @Expose()
+  // updatedAt: string;
 }

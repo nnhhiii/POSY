@@ -53,7 +53,7 @@ export class UserController {
     private readonly updateUserService: UpdateUserService,
     private readonly getUsersService: GetUsersService,
     private readonly deleteUserService: DeleteUserService,
-  ) { }
+  ) {}
 
   @Get(':id')
   @Roles(Role.ADMIN, Role.MANAGER)
@@ -94,7 +94,6 @@ export class UserController {
       items: userPreviewItems,
     };
   }
-
 
   @Post('')
   @Roles(Role.ADMIN, Role.MANAGER)
