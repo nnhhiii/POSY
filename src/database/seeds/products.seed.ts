@@ -1,5 +1,22 @@
 import { faker } from '@faker-js/faker';
 import { PrismaClient, ProductDiscountType } from '@prisma/client';
+import { MeiliSearch } from 'meilisearch';
+import { ProductDiscountType as DomainProductDiscountType } from '../../models/products/enums/discount-type.enum';
+
+if (!process.env.MEILI_HOST) {
+  throw new Error('Meilisearch host is missing in environment variables.');
+}
+
+if (!process.env.MEILI_MASTER_KEY) {
+  throw new Error(
+    'Meilisearch master key is missing in environment variables.',
+  );
+}
+
+const meiliClient = new MeiliSearch({
+  host: process.env.MEILI_HOST,
+  apiKey: process.env.MEILI_MASTER_KEY,
+});
 
 export async function seedProducts(prisma: PrismaClient) {
   // Fetch all categories from the database
@@ -60,4 +77,40 @@ export async function seedProducts(prisma: PrismaClient) {
       await prisma.product.create({ data: product });
     }
   }
+
+  // After seeding, fetch all products with their categories
+  const seededProducts = await prisma.product.findMany({
+    include: { category: true },
+  });
+
+  // Convert seededProducts (Prisma result) to Product[] (camelCase, all required fields)
+  const productsForMeili = seededProducts.map((p) => ({
+    id: p.id,
+    name: p.name,
+    price:
+      typeof p.price === 'object' && p.price !== null && 'toNumber' in p.price
+        ? p.price.toNumber()
+        : p.price,
+    discountType: p.discount_type as DomainProductDiscountType,
+    discountValue:
+      p.discount_value !== null &&
+      typeof p.discount_value === 'object' &&
+      'toNumber' in p.discount_value
+        ? p.discount_value.toNumber()
+        : p.discount_value,
+    imageUrl: p.image_url,
+    isDeleted: p.is_deleted,
+    isAvailable: p.is_available,
+    stockQuantity: p.stock_quantity,
+    createdAt: p.created_at,
+    updatedAt: p.updated_at,
+    categoryId: p.category_id,
+    sku: p.sku,
+    description: p.description,
+    deletedAt: p.deleted_at,
+    category: p.category,
+  }));
+
+  // Index to Meilisearch
+  await meiliClient.index('products').addDocuments(productsForMeili);
 }

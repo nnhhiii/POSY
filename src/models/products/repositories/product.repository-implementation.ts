@@ -4,23 +4,30 @@ import { Product, ProductMapper } from '../types';
 import { Page } from '../../../common/interfaces';
 import { PrismaService } from '../../../providers/prisma/prisma.service';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/client';
-import { DuplicateEntryException } from '../../../common/exceptions';
-import { ProductKnownException } from '../exceptions';
+import {
+  DuplicateEntryException,
+  ForeignKeyViolationException,
+} from '../../../common/exceptions';
+import { ProductNotFoundException } from '../exceptions';
 import { paginationConfig } from '../../../common/config';
 import {
   ProductOrderBy,
   ProductQueryFilter,
-  ProductQueryParms,
+  ProductQueryParams,
 } from '../interfaces';
 import { Prisma } from '@prisma/client';
 import { camelCaseToSnakeCase } from '../../../common/utilities/string.util';
+import { MeilisearchProductService } from '../../../providers/meilisearch/meilisearch-product.service';
 
 const { page: defaultPage, pageSize: defaultPageSize } =
   paginationConfig.default;
 
 @Injectable()
 export class ProductRepositoryImpl implements ProductRepository {
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly meilisearchProductService: MeilisearchProductService,
+  ) {}
 
   /**
    * Creates a new product in the database.
@@ -36,17 +43,22 @@ export class ProductRepositoryImpl implements ProductRepository {
   async create(entity: Product): Promise<Product> {
     try {
       const prisma = ProductMapper.toPrisma(entity);
-      return await this.prismaService.product
-        .create({
-          data: prisma,
-        })
+      const product = await this.prismaService.product
+        .create({ data: prisma, include: { category: true } })
         .then(ProductMapper.toDomain);
+
+      // Index the product in MeiliSearch asynchronously
+      void this.meilisearchProductService.indexProduct(product);
+
+      return product;
     } catch (e) {
       if (e instanceof PrismaClientKnownRequestError) {
         if (e.code === 'P2002') {
           throw new DuplicateEntryException(
             'Product with provided data already exists',
           );
+        } else if (e.code === 'P2003') {
+          throw new ForeignKeyViolationException(entity);
         }
       }
       throw e;
@@ -60,17 +72,13 @@ export class ProductRepositoryImpl implements ProductRepository {
    * Throws a ProductKnownException if the product is not found.
    *
    * @param {string} id - The unique identifier of the product to delete.
-   * @returns {Promise<void>} A promise that resolves when the product is soft deleted.
-   * @throws {ProductKnownException} If the product is not found.
+   * @returns {Promise<void>} A promise that resolves when the product is softly deleted.
+   * @throws {ProductNotFoundException} If the product with the specified ID does not exist.
    */
   async delete(id: string): Promise<void> {
     const product = await this.findById(id);
     if (!product) {
-      throw new ProductKnownException(
-        'NOT_FOUND',
-        `Product with id ${id} not found`,
-        { id },
-      );
+      throw new ProductNotFoundException(id);
     }
     await this.prismaService.product.update({
       where: { id },
@@ -79,6 +87,9 @@ export class ProductRepositoryImpl implements ProductRepository {
         deleted_at: new Date(),
       },
     });
+
+    // Remove from MeiliSearch index asynchronously
+    void this.meilisearchProductService.deleteDocument(id);
   }
 
   /**
@@ -88,48 +99,133 @@ export class ProductRepositoryImpl implements ProductRepository {
    * @returns {Promise<Product | null>} A promise that resolves to the product domain object if found, or null otherwise.
    */
   async findById(id: string): Promise<Product | null> {
-    return await this.prismaService.product
-      .findUnique({
-        where: { id },
-      })
-      ?.then(ProductMapper.toDomain);
+    const product = await this.prismaService.product.findUnique({
+      where: { id },
+      include: { category: true },
+    });
+    if (!product) return null;
+    return ProductMapper.toDomain(product);
   }
 
   /**
    * Retrieves a paginated list of products based on query parameters.
    *
-   * @param {ProductQueryParms} params - The query parameters for pagination, filtering, and sorting.
+   * @param {ProductQueryParams} params - The query parameters for pagination, filtering, and sorting.
    *   - page: The page number to retrieve (default is from config).
    *   - pageSize: The number of items per page (default is from config).
    *   - filter: Filtering options for products (see ProductQueryFilter).
    *   - orderBy: Array of sorting options for specific fields and direction.
    * @returns {Promise<Page<Product>>} A promise that resolves to a paginated result containing products and pagination info.
    */
-  async getAllPaged(params: ProductQueryParms): Promise<Page<Product>> {
-    // TODO: Implement search engine
+  async getAllPaged(params: ProductQueryParams): Promise<Page<Product>> {
+    const { filter } = params;
+
+    // Use MeiliSearch if there's a search query
+    if (filter?.query) {
+      return this.searchWithMeiliSearch(params);
+    }
+
+    // Otherwise use Prisma for regular database queries
+    return this.searchWithPrisma(params);
+  }
+
+  /**
+   * Search products using MeiliSearch for full-text search.
+   */
+  private async searchWithMeiliSearch(
+    params: ProductQueryParams,
+  ): Promise<Page<Product>> {
     const {
       page = defaultPage,
       pageSize = defaultPageSize,
       filter,
       orderBy: pairs,
     } = params;
+    const filterString =
+      this.meilisearchProductService.buildFilterString(filter);
+
+    // Convert orderBy pairs to MeiliSearch sort format: ["field:direction", ...]
+    let sort: string[] | undefined;
+    if (pairs && pairs.length > 0) {
+      sort = pairs.map((pair) => `${pair.field}:${pair.direction}`);
+    }
+
+    // Search using MeiliSearch
+    const searchResult = await this.meilisearchProductService.searchDocuments(
+      filter!.query as string,
+      page - 1, // MeiliSearch uses 0-based pagination
+      pageSize,
+      sort,
+      { filters: filterString },
+    );
+
+    // Fetch full product details from database for the found IDs
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    const productIds = searchResult.items.map((item: any) => item.id as string);
+
+    if (productIds.length === 0) {
+      return {
+        items: [],
+        page,
+        pageSize,
+        total: 0,
+        totalPages: 0,
+      };
+    }
+
+    const products = await this.prismaService.product.findMany({
+      where: { id: { in: productIds } },
+      include: { category: true },
+    });
+
+    // Maintain the order from MeiliSearch results
+    const productMap = new Map(products.map((p) => [p.id, p]));
+    const orderedProducts = productIds
+      .map((id) => productMap.get(id))
+      .filter((p): p is NonNullable<typeof p> => p !== undefined);
+
+    return {
+      items: orderedProducts.map(ProductMapper.toDomain),
+      page,
+      pageSize,
+      total: searchResult.total,
+      totalPages: searchResult.totalPages,
+    };
+  }
+
+  /**
+   * Search products using Prisma for database queries.
+   */
+  private async searchWithPrisma(
+    params: ProductQueryParams,
+  ): Promise<Page<Product>> {
+    const {
+      page = defaultPage,
+      pageSize = defaultPageSize,
+      filter,
+      orderBy: pairs,
+    } = params;
+
     const where = this.buildWhereClause(filter);
     const orderBy = this.buildOrderByClause(pairs);
+
     const [items, total] = await Promise.all([
       this.prismaService.product.findMany({
         where,
         orderBy,
         skip: (page - 1) * pageSize,
         take: pageSize,
+        include: { category: true },
       }),
-      this.prismaService.product.count(),
+      this.prismaService.product.count({ where }),
     ]);
+
     return {
       items: items.map((p) => ProductMapper.toDomain(p)),
       page,
       pageSize,
       total,
-      totalPages: Math.floor(total / pageSize),
+      totalPages: Math.ceil(total / pageSize),
     };
   }
 
@@ -155,34 +251,45 @@ export class ProductRepositoryImpl implements ProductRepository {
       {} as Record<string, any>,
     );
 
-    return await this.prismaService.product
+    const product = await this.prismaService.product
       .update({
         where: { id },
         data: snakeKeyData,
+        include: { category: true },
       })
       .then(ProductMapper.toDomain);
+
+    // Re-index the product in MeiliSearch asynchronously
+    void this.meilisearchProductService.indexProduct(product);
+
+    return product;
   }
 
   /**
    * Builds the Prisma orderBy clause from the provided order by pairs.
    *
    * @param {ProductOrderBy} [pairs] - The order by pairs specifying fields and directions.
-   * @returns {Prisma.ProductOrderByWithRelationInput} The Prisma orderBy clause for sorting.
+   * @returns {Prisma.ProductOrderByWithRelationInput | Prisma.ProductOrderByWithRelationInput[]} The Prisma orderBy clause for sorting.
    */
   private buildOrderByClause(
     pairs?: ProductOrderBy,
-  ): Prisma.ProductOrderByWithRelationInput {
-    if (!pairs) {
+  ):
+    | Prisma.ProductOrderByWithRelationInput
+    | Prisma.ProductOrderByWithRelationInput[] {
+    if (!pairs || pairs.length === 0) {
       return { created_at: 'desc' };
     }
 
-    const orderBy: Prisma.ProductOrderByWithRelationInput = {};
-
-    for (const [key, value] of Object.entries(pairs)) {
-      orderBy[key] = value;
-    }
-
-    return orderBy;
+    const mapping: Record<string, string> = {
+      price: 'price',
+      stockQuantity: 'stock_quantity',
+      createdAt: 'created_at',
+      updatedAt: 'updated_at',
+    };
+    return pairs.map((pair) => {
+      const snakeField = mapping[pair.field] || pair.field;
+      return { [snakeField]: pair.direction };
+    });
   }
 
   /**

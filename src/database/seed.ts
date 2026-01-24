@@ -1,10 +1,13 @@
 import 'dotenv/config';
-import { seedAdmin, seedStaff } from './seeds/accounts.seed';
-import { seedCategories } from './seeds/categories.seed';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
-import { seedPromotions } from './seeds/promotions.seed';
-import { seedProducts } from './seeds/products.seed';
+import {
+  seedAdmin,
+  seedCategories,
+  seedProducts,
+  seedPromotions,
+  seedStaff,
+} from './seeds';
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {

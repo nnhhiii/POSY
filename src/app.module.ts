@@ -17,10 +17,10 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ActivityLogModule } from './models/activity-log/activity-log.module';
 import { CommonModule } from './common/common.module';
-import { APP_INTERCEPTOR } from '@nestjs/core';
-import { ActivityLogInterceptor } from './common/interceptors/activity-log.interceptor';
 import { PromotionModule } from './models/promotions/promotion.module';
 import { ProductModule } from './models/products/product.module';
+import { MeilisearchConfigModule } from './config/meilisearch/config.module';
+import { MeilisearchModule } from './providers/meilisearch/meilisearch.module';
 
 @Module({
   imports: [
@@ -41,6 +41,8 @@ import { ProductModule } from './models/products/product.module';
     CommonModule,
     PromotionModule,
     ProductModule,
+    MeilisearchConfigModule,
+    MeilisearchModule,
   ],
   providers: [
     // {

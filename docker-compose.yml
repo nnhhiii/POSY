@@ -2,10 +2,8 @@ version: '3.9'
 services:
   postgres:
     image: postgres:17
-    environment:
-      POSTGRES_USER: pos
-      POSTGRES_PASSWORD: 12345
-      POSTGRES_DB: posdb
+    env_file:
+      - .env
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
@@ -14,28 +12,21 @@ services:
   pgadmin:
     image: dpage/pgadmin4
     container_name: pgadmin
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@admin.com
-      PGADMIN_DEFAULT_PASSWORD: admin
     ports:
       - "5050:80"
+    env_file:
+      - .env
     depends_on:
       - postgres
 
-  # backend:
-  #   build: ./backend
-  #   environment:
-  #     DATABASE_HOST: postgres
-  #     DATABASE_PORT: 5432
-  #     DATABASE_USER: pos
-  #     DATABASE_PASS: pospass
-  #     DATABASE_DB: posdb
-  #     REDIS_HOST: redis
-  #   depends_on:
-  #     - postgres
-  #     - redis
-  #   ports:
-  #     - "3000:3000"
-  #     - "50051:50051" # grpc
+  meilisearch:
+    image: getmeili/meilisearch:latest
+    ports:
+      - "7700:7700"
+    env_file:
+      - .env
+    environment:
+      MEILI_NO_ANALYTICS: "true"
+
 volumes:
   pgdata:

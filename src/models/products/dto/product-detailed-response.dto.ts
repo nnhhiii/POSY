@@ -1,17 +1,33 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Exclude, Expose, Type } from 'class-transformer';
 import { ProductDiscountType } from '../enums';
-import { CategoryPreviewResponseDto } from '../../categories/dto';
+import { CategoryDetailedResponseDto } from '../../categories/dto';
 
 @Exclude()
-export class ProductPreviewResponseDto {
+export class ProductDetailedResponseDto {
   @ApiProperty({ type: String, description: 'Product ID' })
   @Expose()
   id: string;
 
+  @ApiProperty({ type: String, description: 'Category ID', nullable: true })
+  @Expose()
+  categoryId: string;
+
+  @ApiProperty({ type: String, description: 'Product SKU', nullable: true })
+  @Expose()
+  sku: string;
+
   @ApiProperty({ type: String, description: 'Product name' })
   @Expose()
   name: string;
+
+  @ApiProperty({
+    type: String,
+    description: 'Product description',
+    nullable: true,
+  })
+  @Expose()
+  description: string;
 
   @ApiProperty({ type: Number, description: 'Product price' })
   @Expose()
@@ -25,9 +41,13 @@ export class ProductPreviewResponseDto {
   @Expose()
   discountValue: number;
 
-  @ApiProperty({ type: String, description: 'Product image URL' })
+  @ApiProperty({ type: String, description: 'Product image URLs' })
   @Expose()
   imageUrl: string;
+
+  @ApiProperty({ type: Number, description: 'Stock quantity' })
+  @Expose()
+  stockQuantity: number;
 
   @ApiProperty({ type: Boolean, description: 'Is deleted' })
   @Expose()
@@ -45,11 +65,15 @@ export class ProductPreviewResponseDto {
   @Expose()
   updatedAt: Date;
 
+  @ApiProperty({ type: Date, description: 'Deleted at', nullable: true })
+  @Expose()
+  deletedAt: Date;
+
   @ApiProperty({
-    type: () => CategoryPreviewResponseDto,
+    type: () => CategoryDetailedResponseDto,
     description: 'Product category',
   })
   @Expose()
-  @Type(() => CategoryPreviewResponseDto)
-  category: CategoryPreviewResponseDto;
+  @Type(() => CategoryDetailedResponseDto)
+  category: CategoryDetailedResponseDto;
 }

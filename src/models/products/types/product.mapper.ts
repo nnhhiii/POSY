@@ -1,6 +1,7 @@
 import { Prisma, Product as PrismaProduct } from '@prisma/client';
 import { Product as DomainProduct } from './product.class';
 import { ProductDiscountType } from '../enums';
+import { CategoryMapper } from '../../categories/types';
 
 export class ProductMapper {
   static toDomain(this: void, prisma: PrismaProduct): DomainProduct {
@@ -24,6 +25,11 @@ export class ProductMapper {
       prisma.deleted_at,
       prisma.created_at,
       prisma.updated_at,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      (prisma as any).category
+        ? // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-unsafe-argument
+          CategoryMapper.toDomain((prisma as any).category)
+        : undefined,
     );
   }
 

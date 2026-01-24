@@ -2,16 +2,21 @@ import { ProductDiscountType } from '../enums';
 import { PaginationParams } from '../../../common/interfaces';
 import { SortField } from '../../../common/interfaces';
 
+export type ProductSortField =
+  | 'price'
+  | 'name'
+  | 'stockQuantity'
+  | 'createdAt'
+  | 'updatedAt';
+
 /**
  * Represents the sorting option for product queries.
  *
  * @template T - The allowed field names for sorting.
- * @property {T} field - The field to sort by (e.g., 'price', 'stockQuantity', 'createdAt', 'updatedAt').
+ * @property {T} field - The field to sort by (e.g., 'price', 'name' ,'stockQuantity', 'createdAt', 'updatedAt').
  * @property {'asc' | 'desc'} direction - The direction of sorting: ascending ('asc') or descending ('desc').
  */
-export type ProductOrderBy = Array<
-  SortField<'price' | 'stockQuantity' | 'createdAt' | 'updatedAt'>
->;
+export type ProductOrderBy = Array<SortField<ProductSortField>>;
 
 /**
  * Represents the filter options available for querying products.
@@ -50,7 +55,7 @@ export interface ProductQueryFilter {
  * @property {ProductOrderBy} [orderBy] - Array of sorting options for specific fields and direction.
  * @property {ProductQueryFilter} [filter] - Filtering options for products.
  */
-export interface ProductQueryParms extends PaginationParams {
+export interface ProductQueryParams extends PaginationParams {
   /**
    * Specifies sorting options for the query. Each object in the array defines a field to sort by and the direction.
    *

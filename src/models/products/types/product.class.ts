@@ -1,4 +1,5 @@
 import { ProductDiscountType } from '../enums';
+import { Category } from '../../categories/types';
 
 export class Product {
   constructor(
@@ -17,5 +18,6 @@ export class Product {
     public deletedAt: Date | null,
     public createdAt: Date | null,
     public updatedAt: Date | null,
+    public category: Category | undefined,
   ) {}
 }
