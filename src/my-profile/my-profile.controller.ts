@@ -21,7 +21,16 @@ import { Request } from 'express';
 import { plainToInstance } from 'class-transformer';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import { Logger } from 'winston';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiBody,
+} from '@nestjs/swagger';
 
+@ApiTags('My Profile')
+@ApiBearerAuth()
 @Controller('my-profile')
 @UseGuards(AuthGuard('jwt'))
 export class MyProfileController {
@@ -33,6 +42,17 @@ export class MyProfileController {
   ) {}
 
   @Get('')
+  @ApiOperation({
+    summary: 'Get my profile',
+    description:
+      'Returns detailed information about the authenticated user profile.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'User profile details',
+    type: UserDetailedResponseDto,
+  })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   async getProfile(@Req() req: Request): Promise<UserDetailedResponseDto> {
     const userId = (req.user as JwtPayload).sub;
 
@@ -50,6 +70,18 @@ export class MyProfileController {
   }
 
   @Put()
+  @ApiOperation({
+    summary: 'Update my profile',
+    description:
+      'Updates the authenticated user profile with the provided details.',
+  })
+  @ApiBody({ type: UpdateUserDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Updated user profile',
+    type: UserDetailedResponseDto,
+  })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   async updateProfile(
     @Body() dto: UpdateUserDto,
     @Req() req: Request,
@@ -70,6 +102,18 @@ export class MyProfileController {
   }
 
   @Put('change-password')
+  @ApiOperation({
+    summary: 'Change my password',
+    description:
+      'Changes the password for the authenticated user. Requires current authentication.',
+  })
+  @ApiBody({ type: UpdatePasswordDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Password changed successfully',
+    schema: { example: { message: 'Password changed successfully' } },
+  })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   async changePassword(
     @Body() dto: UpdatePasswordDto,
     @Req() req: Request,

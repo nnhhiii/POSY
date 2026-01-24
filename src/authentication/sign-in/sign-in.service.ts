@@ -54,7 +54,7 @@ export class SignInService {
         user.failedLoginAttempts = 0;
         user.lockoutExpiresAt = new Date(Date.now() + lockTime * 60 * 1000);
       }
-      await this.userRepository.updateUserById(user.id!, {
+      await this.userRepository.update(user.id!, {
         failedLoginAttempts: user.failedLoginAttempts,
         lockoutExpiresAt: user.lockoutExpiresAt,
       });

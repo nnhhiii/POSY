@@ -40,9 +40,18 @@ import { LogOutService } from './log-out/log-out.service';
 import { AuthGuard } from '@nestjs/passport';
 import { Throttle } from '@nestjs/throttler';
 import { authConfig } from './auth.config';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 
 const { limit, ttl } = authConfig.throttle;
 
+@ApiTags('Authentication')
+@ApiBearerAuth()
 @Controller('auth')
 export class AuthController {
   @Inject(WINSTON_MODULE_NEST_PROVIDER)
@@ -60,6 +69,22 @@ export class AuthController {
 
   @Post('signin')
   @Throttle({ default: { limit, ttl } })
+  @ApiOperation({
+    summary: 'Sign in',
+    description:
+      'Authenticate user and return access token. Sets refresh token as HttpOnly cookie.',
+  })
+  @ApiBody({ type: SignInDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Access token and expiration',
+    schema: {
+      example: { access_token: 'jwt', expires_in: 3600 },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'Invalid credentials' })
+  @ApiResponse({ status: 401, description: 'Account locked' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   async signin(
     @Body() dto: SignInDto,
     @Res({ passthrough: true }) res: Response,
@@ -94,6 +119,21 @@ export class AuthController {
 
   @Post('forget-password')
   @Throttle({ default: { limit, ttl } })
+  @ApiOperation({
+    summary: 'Request password reset',
+    description: 'Send password reset link to user email if it exists.',
+  })
+  @ApiBody({ type: ForgetPasswordDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Password reset link sent',
+    schema: {
+      example: {
+        message: 'If the email exists, a password reset link has been sent.',
+      },
+    },
+  })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   async forgetPassword(@Body() dto: ForgetPasswordDto, @Req() req: Request) {
     const deviceContext: DeviceContext = {
       date: req['date'] as string,
@@ -120,6 +160,21 @@ export class AuthController {
 
   @Post('validate-reset-code')
   @Throttle({ default: { limit, ttl } })
+  @ApiOperation({
+    summary: 'Validate reset code',
+    description: 'Validate the password reset code and return a reset token.',
+  })
+  @ApiBody({ type: ValidateResetCodeDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Reset token',
+    schema: {
+      example: { reset_token: 'token' },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'Invalid or expired reset code' })
+  @ApiResponse({ status: 401, description: 'User not found' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   async validateResetCode(
     @Body() dto: ValidateResetCodeDto,
   ): Promise<ResetTokenSchema> {
@@ -144,6 +199,21 @@ export class AuthController {
 
   @Post('reset-password')
   @Throttle({ default: { limit, ttl } })
+  @ApiOperation({
+    summary: 'Reset password',
+    description: 'Reset user password using a valid reset token.',
+  })
+  @ApiBody({ type: ResetPasswordDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Password reset successful',
+    schema: {
+      example: { message: 'The password has been successfully reset.' },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'Invalid or expired reset token' })
+  @ApiResponse({ status: 401, description: 'User not found' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   async resetPassword(@Body() dto: ResetPasswordDto) {
     try {
       await this.resetPasswordService.resetPassword(dto);
@@ -165,6 +235,23 @@ export class AuthController {
   }
 
   @Post('refresh')
+  @ApiOperation({
+    summary: 'Refresh access token',
+    description: 'Refresh JWT access token using HttpOnly cookie.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'New access token and expiration',
+    schema: {
+      example: { access_token: 'jwt', expires_in: 3600 },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Refresh token not found or invalid',
+  })
+  @ApiResponse({ status: 401, description: 'User not found' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   async refreshAccessToken(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
@@ -209,6 +296,19 @@ export class AuthController {
 
   @Post('logout')
   @UseGuards(AuthGuard('jwt'))
+  @ApiOperation({
+    summary: 'Logout',
+    description: 'Logout user and clear refresh token cookie.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Logout successful',
+    schema: {
+      example: { success: true },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'User not found' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const userId = (req.user as JwtPayload).sub;
     try {
