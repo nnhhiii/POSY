@@ -4,7 +4,9 @@ import { RoleGuard } from 'src/authorization/guards/role.guard';
 import { Role } from '../../common/enums';
 import { Roles } from '../../common/decorators';
 import { ActivityLogService } from './activity-log.service';
+import { ApiExcludeController } from '@nestjs/swagger';
 
+@ApiExcludeController()
 @Controller('log')
 @UseGuards(AuthGuard('jwt'), RoleGuard)
 @Roles(Role.ADMIN)
