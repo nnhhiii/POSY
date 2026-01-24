@@ -18,7 +18,7 @@ export class UpdateUserService {
    * @throws {Error} If the update operation fails or the user id is not provided.
    */
   async updateUser(id: string, updatedData: Partial<User>) {
-    return this.userRepository.updateUserById(id, updatedData);
+    return this.userRepository.update(id, updatedData);
   }
 
   /**
@@ -33,7 +33,7 @@ export class UpdateUserService {
     if (!user) throw new UserNotFoundException();
 
     user.isActive = !user.isActive;
-    await this.userRepository.updateUserById(userId, {
+    await this.userRepository.update(userId, {
       isActive: user.isActive,
     });
   }
@@ -58,7 +58,7 @@ export class UpdateUserService {
       throw new UnnecessaryOperationException('User account is not locked.');
     }
 
-    await this.userRepository.updateUserById(userId, {
+    await this.userRepository.update(userId, {
       failedLoginAttempts: 0,
       lockoutExpiresAt: null,
     });
@@ -76,7 +76,7 @@ export class UpdateUserService {
    */
   async updatePassword(userId: string, newPassword: string): Promise<void> {
     const newPasswordHash = await hash(newPassword);
-    await this.userRepository.updateUserById(userId, {
+    await this.userRepository.update(userId, {
       passwordHash: newPasswordHash,
     });
   }

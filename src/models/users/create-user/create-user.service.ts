@@ -15,6 +15,6 @@ export class CreateUserService {
    * @throws {RelatedRecordNotFoundException} If related records required for user creation are not found.
    */
   async createUser(user: User): Promise<User> {
-    return this.userRepository.createUser(user);
+    return this.userRepository.create(user);
   }
 }

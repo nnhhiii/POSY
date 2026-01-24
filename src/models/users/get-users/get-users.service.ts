@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { UserRepository } from '../repositories';
 import { User } from '../types/user.class';
 import { UserNotFoundException } from '../exceptions';
+import { UserQueryParams } from '../interfaces';
+import { Page } from '../../../common/interfaces';
 
 @Injectable()
 export class GetUsersService {
@@ -23,16 +25,16 @@ export class GetUsersService {
   }
 
   /**
-   * Retrieves a paginated list of users from the repository.
+   * Retrieves a paginated list of users with advanced filtering and sorting.
    *
-   * @async
-   * @param {number} page - The current page number (1-based index).
-   * @param {number} pageSize - The number of users to retrieve per page.
-   * @param {string} requesterRole - The role of the user making the request (to filter results).
-   * @returns {Promise<Array<User>>} A promise that resolves to an array of user entities for the specified page.
-   * @throws {Error} If there is an error retrieving users from the repository.
+   * @param {UserQueryParams} params - The query parameters for filtering, sorting, and pagination.
+   * @param {string} [requesterRole] - The role of the user making the request (to filter results).
+   * @returns {Promise<Page<User>>} A promise that resolves to a paginated list of users.
    */
-  async getAllUsers(page?: number, pageSize?: number, requesterRole?: string) {
-    return await this.userRepository.getUsers(page, pageSize, requesterRole);
+  async getAll(
+    params: UserQueryParams,
+    requesterRole?: string,
+  ): Promise<Page<User>> {
+    return this.userRepository.getAllPaged(params, requesterRole);
   }
 }

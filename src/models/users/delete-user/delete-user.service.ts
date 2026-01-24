@@ -16,6 +16,6 @@ export class DeleteUserService {
    * @throws UserNotFoundException if the user with the specified ID does not exist (from repository layer).
    */
   async deleteUserById(userId: string): Promise<void> {
-    await this.userRepository.deleteUserById(userId);
+    await this.userRepository.delete(userId);
   }
 }
