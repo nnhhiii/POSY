@@ -55,6 +55,7 @@ import { PromotionProductPreviewResponseDto } from './dto/promotion-product-prev
 import { Request } from 'express';
 import { JwtPayload } from '../../authentication/interfaces';
 import { ProductNotFoundException } from '../products/exceptions';
+import { createPageResponseSchema } from '../../common/dto';
 
 @ApiTags('Promotion')
 @ApiBearerAuth()
@@ -179,9 +180,8 @@ export class PromotionController {
   @ApiQuery({ name: 'query', required: false, type: PromotionQueryParamsDto })
   @ApiResponse({
     status: 200,
-    description: 'List of promotions',
-    type: PromotionPreviewResponseDto,
-    isArray: false,
+    description: 'Paginated list of promotions',
+    schema: createPageResponseSchema(PromotionPreviewResponseDto),
   })
   async getAll(@Query() query: PromotionQueryParamsDto) {
     try {

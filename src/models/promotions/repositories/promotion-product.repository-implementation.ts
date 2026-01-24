@@ -6,7 +6,6 @@ import { PrismaClientKnownRequestError } from '@prisma/client/runtime/client';
 import { DuplicateEntryException } from '../../../common/exceptions';
 import { PromotionProductNotFoundException } from '../exceptions';
 import { PromotionStatus } from '@prisma/client';
-import e from 'express';
 
 @Injectable()
 export class PromotionProductRepositoryImpl implements PromotionProductRepository {

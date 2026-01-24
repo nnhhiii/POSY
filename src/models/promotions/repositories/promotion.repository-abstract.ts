@@ -55,5 +55,4 @@ export abstract class PromotionRepository implements BaseRepository<Promotion> {
    * @returns {Promise<number>} The number of promotions updated.
    */
   abstract updateExpiredPromotions(date: Date): Promise<number>;
-
 }
