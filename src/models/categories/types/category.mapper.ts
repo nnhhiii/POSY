@@ -21,10 +21,11 @@ export class CategoryMapper {
       throw new MissingRequireFieldsException();
     }
 
-    const slug =
-      domainCategory.slug && domainCategory.slug.trim() !== ''
-        ? domainCategory.slug
-        : getSlug(domainCategory.name);
+    // const slug =
+    //   domainCategory.slug && domainCategory.slug.trim() !== ''
+    //     ? domainCategory.slug
+    //     : getSlug(domainCategory.name);
+    const slug = getSlug(domainCategory.name);
 
     return {
       name: domainCategory.name,

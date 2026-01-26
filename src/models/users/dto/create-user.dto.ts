@@ -3,6 +3,7 @@ import {
   IsEmail,
   IsNotEmpty,
   IsString,
+  Matches,
   MaxLength,
   MinLength,
 } from 'class-validator';
@@ -15,6 +16,10 @@ import {
 export class CreateUserDto {
   @IsString()
   @IsNotEmpty()
+  @MinLength(3)
+  @Matches(/^[a-zA-Z0-9_]+$/, {
+    message: 'Username can only contain letters, numbers, and underscores',
+  })
   username: string;
 
   @IsValidPassword()
@@ -30,8 +35,8 @@ export class CreateUserDto {
 
   @IsString()
   @IsNotEmpty()
-  @MinLength(2, { message: 'fullName must be at least 2 characters long.' })
-  @MaxLength(100, { message: 'fullName must be at most 100 characters long.' })
+  @MinLength(2, { message: 'FullName must be at least 2 characters long.' })
+  @MaxLength(100, { message: 'FullName must be at most 100 characters long.' })
   fullName: string;
 
   @IsString()

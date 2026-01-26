@@ -9,8 +9,8 @@ export class CreateCategoryDto {
   @IsValidCategoryDescription()
   description?: string;
 
-  @IsValidSlug()
-  slug?: string;
+  // @IsValidSlug()
+  // slug?: string;
 
   @IsBoolean()
   isActive?: boolean = true;

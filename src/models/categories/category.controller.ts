@@ -138,7 +138,7 @@ export class CategoryController {
     }
   }
 
-  @Post('toggle-active/:id')
+  @Post(':id/toggle-active')
   @Roles(Role.ADMIN, Role.MANAGER)
   @UseGuards(AuthGuard('jwt'), RoleGuard)
   async toggleCategoryActive(@Param('id') id: string) {

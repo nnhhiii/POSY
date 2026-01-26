@@ -11,7 +11,7 @@ export class UpdateCategoryDto {
   @IsValidCategoryDescription()
   description?: string;
 
-  @IsOptional()
-  @IsValidSlug()
-  slug?: string;
+  // @IsOptional()
+  // @IsValidSlug()
+  // slug?: string;
 }

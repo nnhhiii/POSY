@@ -77,9 +77,6 @@ export class MyProfileController {
     const userId = (req.user as JwtPayload).sub;
 
     try {
-      // Ensure the user can only change their own password
-      dto.id = userId;
-
       await this.updateUserService.updatePassword(userId, dto.newPassword);
       return { message: 'Password changed successfully' };
     } catch (e) {

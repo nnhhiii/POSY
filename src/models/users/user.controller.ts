@@ -186,11 +186,11 @@ export class UserController {
     }
   }
 
-  @Post('/update-password')
+  @Put('update-password/:id')
   @Roles(Role.ADMIN, Role.MANAGER)
   @PreventManagerAdminAccess('id')
   @UseGuards(AuthGuard('jwt'), RoleGuard, PreventManagerAdminAccessGuard)
-  async updateUserPassword(@Body() dto: UpdatePasswordDto) {
+  async updateUserPassword(@Param('id') id: string, @Body() dto: UpdatePasswordDto) {
     // if (dto.newPassword !== dto.newPasswordConfirmation) {
     //   throw new BadRequestException(
     //     'New password and confirmation do not match.',
@@ -198,7 +198,7 @@ export class UserController {
     // }
 
     try {
-      await this.updateUserService.updatePassword(dto.id, dto.newPassword);
+      await this.updateUserService.updatePassword(id, dto.newPassword);
       return { message: 'User password has been successfully updated.' };
     } catch (e) {
       if (e instanceof UserNotFoundException) {
