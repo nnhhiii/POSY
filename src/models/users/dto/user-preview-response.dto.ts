@@ -32,4 +32,16 @@ export class UserPreviewResponseDto {
   @ApiProperty({ type: Boolean, description: 'Is user active', example: true })
   @Expose()
   isActive: boolean;
+
+  @ApiProperty({ type: Boolean, description: 'Has user been deleted', example: true })
+  @Expose()
+  isDeleted: boolean;
+
+  @ApiProperty({
+    type: Date,
+    description: 'Lockout expiration time',
+    example: '2026-01-24T12:34:56.789Z',
+  })
+  @Expose()
+  lockoutExpiresAt: Date;
 }

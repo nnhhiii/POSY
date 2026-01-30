@@ -117,7 +117,7 @@ export class AuthController {
     }
   }
 
-  @Post('forget-password')
+  @Post('forgot-password')
   @Throttle({ default: { limit, ttl } })
   @ApiOperation({
     summary: 'Request password reset',
@@ -134,7 +134,7 @@ export class AuthController {
     },
   })
   @ApiResponse({ status: 500, description: 'Internal server error' })
-  async forgetPassword(@Body() dto: ForgetPasswordDto, @Req() req: Request) {
+    async forgotPassword(@Body() dto: ForgetPasswordDto, @Req() req: Request) {
     const deviceContext: DeviceContext = {
       date: req['date'] as string,
       device: req['device'] as string,

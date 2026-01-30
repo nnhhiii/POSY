@@ -39,9 +39,10 @@ export class MyProfileController {
     private readonly updateUserService: UpdateUserService,
     @Inject(WINSTON_MODULE_NEST_PROVIDER)
     private readonly logger: Logger,
-  ) {}
+  ) { }
 
-  @Get('')
+
+  @Get()
   @ApiOperation({
     summary: 'Get my profile',
     description:
@@ -53,6 +54,7 @@ export class MyProfileController {
     type: UserDetailedResponseDto,
   })
   @ApiResponse({ status: 500, description: 'Internal server error' })
+
   async getProfile(@Req() req: Request): Promise<UserDetailedResponseDto> {
     const userId = (req.user as JwtPayload).sub;
 

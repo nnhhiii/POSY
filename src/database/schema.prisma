@@ -50,9 +50,44 @@ model User {
   lockout_expires_at    DateTime?
 
   // Relations
-  activity_log ActivityLog[]
+  activity_log          ActivityLog[]
+  orders                Order[]
+  tableSessions         TableSession[]
+  payments              Payment[]
+  groups                UserGroup[]
+  sentNotifications     Notification[]     @relation("SentNotifications")
+  receivedNotifications UserNotification[]
 
   @@map("users")
+}
+
+model Group {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String  @db.VarChar(100)
+  description String? @db.Text
+
+  created_at DateTime @default(now())
+
+  // Relations
+  notifications       Notification[]
+  userGroups          UserGroup[]
+  notificationTargets NotificationTarget[]
+
+  @@unique([name])
+  @@map("groups")
+}
+
+model UserGroup {
+  user_id  String @db.Uuid
+  group_id String @db.Uuid
+
+  // Relations
+  user  User  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  group Group @relation(fields: [group_id], references: [id], onDelete: Cascade)
+
+  @@id([user_id, group_id])
+  @@index([group_id])
+  @@map("user_groups")
 }
 
 // --------------------- End of User model ---------------------
@@ -123,8 +158,16 @@ model Product {
   updated_at     DateTime             @default(now()) @updatedAt
 
   // Relations
-  category          Category?          @relation(fields: [category_id], references: [id])
-  promotionProducts PromotionProduct[]
+  category                   Category?                   @relation(fields: [category_id], references: [id])
+  promotionProducts          PromotionProduct[]
+  orderItems                 OrderItem[]
+  productIngredients         ProductIngredient[]
+  productAttribute           ProductAttribute?
+  sessionProductInteractions SessionProductInteraction[]
+  similaritiesAsA            ProductSimilarity[]         @relation("ProductSimilarityA")
+  similaritiesAsB            ProductSimilarity[]         @relation("ProductSimilarityB")
+  recommendations            Recommendation[]
+  sessionBehaviorLogs        SessionBehaviorLog[]
 
   @@index([category_id])
   @@index([sku])
@@ -133,6 +176,172 @@ model Product {
 }
 
 // --------------------- End of related Product models and enums ---------------------
+
+// --------------------- Start of related Ingredient models and enums ---------------------
+enum VendorStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+model Vendor {
+  id               String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name             String       @db.VarChar(255)
+  contact_name     String?      @db.VarChar(100)
+  email            String?      @db.VarChar(255)
+  phone            String?      @db.VarChar(10)
+  address          String?      @db.Text
+  tax_code         String?      @db.VarChar(50)
+  payment_term     Int?         @db.SmallInt
+  note             String?      @db.Text
+  status           VendorStatus @default(ACTIVE)
+  suspended_reason String?      @db.Text
+  suspended_at     DateTime?
+  suspended_until  DateTime?
+  is_deleted       Boolean      @default(false)
+  deleted_at       DateTime?
+  created_at       DateTime     @default(now())
+  updated_at       DateTime     @default(now()) @updatedAt
+
+  // Relations
+  ingredients Ingredient[]
+
+  @@index([status])
+  @@index([is_deleted])
+  @@map("vendors")
+}
+
+model Unit {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name         String   @db.VarChar(50) // e.g., "kg", "lit
+  abbreviation String   @db.VarChar(10) // e.g., "g", "ml"
+  created_at   DateTime @default(now())
+  updated_at   DateTime @default(now()) @updatedAt
+
+  // Relations
+  ingredients Ingredient[]
+
+  @@unique([name])
+  @@unique([abbreviation])
+  @@map("units")
+}
+
+model Ingredient {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  vendor_id String @db.Uuid
+  unit_id   String @db.Uuid
+
+  name       String    @db.VarChar(100)
+  stock      Int       @db.SmallInt
+  min_stock  Int       @db.SmallInt
+  unit_cost  Decimal   @db.Decimal(10, 2)
+  expired_at DateTime? // Track ingredient expiration date
+
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  // Relations
+  productIngredients  ProductIngredient[]
+  ingredientUsages    IngredientUsage[]
+  ingredientForecasts IngredientForecast[]
+  vendor              Vendor               @relation(fields: [vendor_id], references: [id])
+  unit                Unit                 @relation(fields: [unit_id], references: [id])
+
+  @@index([vendor_id])
+  @@index([expired_at])
+  @@map("ingredients")
+}
+
+// Link products to ingredients with quantity
+model ProductIngredient {
+  id            String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  product_id    String  @db.Uuid
+  ingredient_id String  @db.Uuid
+  quantity      Decimal @db.Decimal(10, 4) // How much ingredient needed per product unit
+
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  // Relations
+  product    Product    @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  ingredient Ingredient @relation(fields: [ingredient_id], references: [id], onDelete: Cascade)
+
+  @@unique([product_id, ingredient_id])
+  @@index([product_id])
+  @@index([ingredient_id])
+  @@map("product_ingredients")
+}
+
+// Track historical ingredient usage (calculated from orders)
+model IngredientUsage {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ingredient_id String   @db.Uuid
+  usage_date    DateTime @db.Date // Daily aggregation
+  quantity_used Decimal  @db.Decimal(10, 4) // Total quantity used on this day
+  order_count   Int // Number of orders that used this ingredient
+  day_of_week   Int      @db.SmallInt // 0=Sunday, 1=Monday, ..., 6=Saturday
+  hour_of_day   Int?     @db.SmallInt // 0-23, for hourly tracking
+  is_weekend    Boolean  @default(false)
+  is_holiday    Boolean  @default(false)
+  created_at    DateTime @default(now())
+
+  // Relations
+  ingredient Ingredient @relation(fields: [ingredient_id], references: [id], onDelete: Cascade)
+
+  @@unique([ingredient_id, usage_date, hour_of_day])
+  @@index([ingredient_id])
+  @@index([usage_date])
+  @@index([day_of_week])
+  @@index([is_weekend])
+  @@index([is_holiday])
+  @@map("ingredient_usages")
+}
+
+// Store forecasting results from Prophet model
+model IngredientForecast {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ingredient_id    String   @db.Uuid
+  forecast_date    DateTime @db.Date // Date for the forecast
+  predicted_usage  Decimal  @db.Decimal(10, 4) // Predicted quantity
+  lower_bound      Decimal  @db.Decimal(10, 4) // Lower confidence interval
+  upper_bound      Decimal  @db.Decimal(10, 4) // Upper confidence interval
+  confidence_level Decimal  @default(0.95) @db.Decimal(3, 2) // e.g., 0.95 = 95%
+  model_version    String   @db.VarChar(50) // Track model version
+  created_at       DateTime @default(now())
+
+  // Relations
+  ingredient Ingredient @relation(fields: [ingredient_id], references: [id], onDelete: Cascade)
+
+  @@unique([ingredient_id, forecast_date])
+  @@index([ingredient_id])
+  @@index([forecast_date])
+  @@index([created_at])
+  @@map("ingredient_forecasts")
+}
+
+// Store seasonal patterns and holidays
+model SeasonalPattern {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name         String    @db.VarChar(100) // e.g., "Tet Holiday", "Christmas"
+  pattern_type String    @db.VarChar(50) // "HOLIDAY", "PEAK_HOUR", "WEEKEND"
+  start_date   DateTime? @db.Date // For specific dates
+  end_date     DateTime? @db.Date
+  day_of_week  Int?      @db.SmallInt // For weekly patterns (0-6)
+  hour_of_day  Int?      @db.SmallInt // For daily patterns (0-23)
+  multiplier   Decimal   @default(1.0) @db.Decimal(5, 2) // Usage multiplier (e.g., 1.5 = 50% increase)
+  is_active    Boolean   @default(true)
+  description  String?   @db.Text
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @default(now()) @updatedAt
+
+  @@index([pattern_type])
+  @@index([start_date, end_date])
+  @@index([day_of_week])
+  @@index([is_active])
+  @@map("seasonal_patterns")
+}
+
+// --------------------- End of related Ingredient models and enums ---------------------
 
 // --------------------- Start of related Promotion models and enums ---------------------
 enum PromotionDiscountType {
@@ -154,6 +363,12 @@ enum PromotionApplicability {
   QUANTITY_BASED // Quantity-based: "Buy 2 get 10% off"
 }
 
+enum PricingSnapshotStatus {
+  QUOTED
+  CONSUMED
+  EXPIRED
+}
+
 model Promotion {
   id                  String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   code                String                 @unique
@@ -168,7 +383,7 @@ model Promotion {
   start_at            DateTime
   end_at              DateTime
   usage_limit         Int?
-  usage_count         Int                    @default(0)
+  // usage_count         Int                    @default(0)
   version             Int                    @default(1)
   status              PromotionStatus        @default(DRAFT)
   is_stackable        Boolean                @default(false)
@@ -179,8 +394,10 @@ model Promotion {
   updated_at          DateTime               @default(now()) @updatedAt
 
   // Relations (when applicability is not ALL_ITEMS)
-  promotionProducts   PromotionProduct[]
-  promotionCategories PromotionCategory[]
+  promotionProducts         PromotionProduct[]
+  promotionCategories       PromotionCategory[]
+  pricingSnapshotPromotions PricingSnapshotPromotion[]
+  promotionRedemptions      PromotionRedemption[]
 
   @@index([code])
   @@index([status])
@@ -190,6 +407,78 @@ model Promotion {
   @@index([priority])
   @@index([applicability])
   @@map("promotions")
+}
+
+model PricingSnapshot {
+  id               String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  subtotal_amount  Decimal               @db.Decimal(10, 2) // Before discounts & taxes
+  discount_amount  Decimal               @db.Decimal(10, 2)
+  total_tax_amount Decimal               @default(0) @db.Decimal(10, 2) // Sum of all taxes
+  total_amount     Decimal               @db.Decimal(10, 2) // Final amount
+  status           PricingSnapshotStatus @default(QUOTED)
+  created_at       DateTime              @default(now())
+  expires_at       DateTime?
+
+  // Relations
+  promotions  PricingSnapshotPromotion[]
+  taxes       PricingSnapshotTax[]
+  redemptions PromotionRedemption[]
+  orders      Order?
+
+  @@map("pricing_snapshots")
+}
+
+model PricingSnapshotTax {
+  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  snapshot_id  String      @db.Uuid
+  tax_id       String      @db.Uuid
+  tax_name     String      @db.VarChar(100) // Snapshot of tax name
+  tax_type     TaxType
+  rate_type    TaxRateType
+  charge_rate  Decimal     @db.Decimal(10, 4) // Snapshot of rate
+  taxable_base Decimal     @db.Decimal(10, 2) // What the tax is calculated on
+  quantity     Int? // For PER_UNIT taxes
+  tax_amount   Decimal     @db.Decimal(10, 2) // Calculated tax amount
+
+  // Relations
+  snapshot PricingSnapshot @relation(fields: [snapshot_id], references: [id], onDelete: Cascade)
+  tax      TaxConfig       @relation(fields: [tax_id], references: [id])
+
+  @@index([snapshot_id])
+  @@index([tax_id])
+  @@map("pricing_snapshot_taxes")
+}
+
+model PricingSnapshotPromotion {
+  id                String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  snapshot_id       String  @db.Uuid
+  promotion_id      String  @db.Uuid
+  promotion_code    String
+  promotion_version Int
+  discount_amount   Decimal @db.Decimal(10, 2)
+
+  // Relations
+  snapshot  PricingSnapshot @relation(fields: [snapshot_id], references: [id])
+  promotion Promotion       @relation(fields: [promotion_id], references: [id])
+
+  @@unique([snapshot_id, promotion_id])
+  @@map("pricing_snapshot_promotions")
+}
+
+model PromotionRedemption {
+  id           String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  promotion_id String @db.Uuid
+  snapshot_id  String @db.Uuid
+  order_id     String @db.Uuid
+
+  redeemed_at DateTime @default(now())
+
+  promotion Promotion       @relation(fields: [promotion_id], references: [id])
+  snapshot  PricingSnapshot @relation(fields: [snapshot_id], references: [id])
+  order     Order           @relation(fields: [order_id], references: [id])
+
+  @@unique([promotion_id, order_id])
+  @@map("promotion_redemptions")
 }
 
 model PromotionProduct {
@@ -223,3 +512,628 @@ model PromotionCategory {
 }
 
 // --------------------- End of related Promotion models and enums ---------------------
+
+// --------------------- Start of related Table models and enums ---------------------
+enum TableStatus {
+  AVAILABLE
+  OCCUPIED
+  RESERVED
+}
+
+enum TableSessionStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+model Floor {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String   @db.VarChar(50)
+  order      Int      @db.SmallInt // For Sorting (e.g. Ground=0, First=1)
+  is_active  Boolean  @default(true)
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  // Relations
+  tables Table[]
+
+  @@unique([name])
+  @@index([order])
+  @@map("floors")
+}
+
+model Zone {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String   @db.VarChar(50)
+  description String?  @db.Text
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @default(now()) @updatedAt
+
+  // Relations
+  tables Table[]
+
+  @@unique([name])
+  @@map("zones")
+}
+
+model Table {
+  id         String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  floor_id   String?     @db.Uuid
+  zone_id    String?     @db.Uuid
+  name       String      @db.VarChar(100)
+  capacity   Int         @db.SmallInt
+  status     TableStatus @default(AVAILABLE)
+  pos_x      Int?        @db.SmallInt // X coordinate for layout
+  pos_y      Int?        @db.SmallInt // Y coordinate for layout
+  is_active  Boolean     @default(true)
+  created_at DateTime    @default(now())
+  updated_at DateTime    @default(now()) @updatedAt
+
+  // Relations
+  orders   Order[]
+  sessions TableSession[]
+  zone     Zone?          @relation(fields: [zone_id], references: [id], onDelete: SetNull)
+  floor    Floor?         @relation(fields: [floor_id], references: [id], onDelete: SetNull)
+
+  @@unique([name, floor_id])
+  @@index([name])
+  @@index([status])
+  @@index([floor_id])
+  @@index([zone_id])
+  @@map("tables")
+}
+
+model TableSession {
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  table_id   String @db.Uuid
+  created_by String @db.Uuid
+
+  session_token String             @db.VarChar(255)
+  status        TableSessionStatus @default(ACTIVE)
+  start_at      DateTime           @default(now()) // When the customer entered
+  end_at        DateTime? // When the customer left
+
+  // Relations
+  user                       User                        @relation(fields: [created_by], references: [id], onDelete: Restrict)
+  table                      Table                       @relation(fields: [table_id], references: [id], onDelete: Restrict)
+  orders                     Order[]
+  sessionBehaviorLogs        SessionBehaviorLog[]
+  sessionPreference          SessionPreference?
+  sessionProductInteractions SessionProductInteraction[]
+  similaritiesAsA            SessionSimilarity[]         @relation("SessionSimilarityA")
+  similaritiesAsB            SessionSimilarity[]         @relation("SessionSimilarityB")
+  recommendations            Recommendation[]
+
+  @@unique([session_token])
+  @@index([session_token])
+  @@index([table_id])
+  @@index([created_by])
+  @@index([status])
+  @@index([start_at, end_at])
+  @@map("table_sessions")
+}
+
+// --------------------- End of related Table models and enums ---------------------
+
+// --------------------- Start of related Order models and enums ---------------------
+
+enum OrderStatus {
+  PENDING // Waiting for confirmation
+  PREPARING // If any item is being prepared
+  READY // All items are ready for serving
+  SERVING // If any item is being served
+  SERVED // All items served
+  COMPLETED // Payment done and order closed
+  CANCELLED // Order cancelled, all items cancelled as well
+}
+
+enum OrderItemStatus {
+  WAITING // Not yet started
+  PREPARING // Being prepared
+  DONE // Ready for serving
+  SERVING // On the way
+  SERVED // Delivered to customer
+  CANCELLED // Cancelled item
+}
+
+model Order {
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_by  String @db.Uuid
+  table_id    String @db.Uuid
+  snapshot_id String @db.Uuid
+  session_id  String @db.Uuid
+
+  status          OrderStatus
+  note            String?     @db.Text
+  subtotal_amount Decimal     @db.Decimal(10, 2) // Before any taxes/charges
+  total_amount    Decimal     @db.Decimal(10, 2) // Final amount to pay (subtotal + all taxes)
+  created_at      DateTime    @default(now())
+  updated_at      DateTime    @default(now()) @updatedAt
+
+  // Relations
+  payments   Payment[]
+  orderTaxes OrderTax[]
+  orderItems OrderItem[]
+  promotions PromotionRedemption[]
+  snapshot   PricingSnapshot       @relation(fields: [snapshot_id], references: [id])
+  user       User                  @relation(fields: [created_by], references: [id])
+  table      Table?                @relation(fields: [table_id], references: [id])
+  session    TableSession?         @relation(fields: [session_id], references: [id])
+
+  @@unique([snapshot_id])
+  @@index([session_id])
+  @@index([created_by])
+  @@index([table_id])
+  @@index([status])
+  @@index([created_at])
+  @@map("orders")
+}
+
+model OrderItem {
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order_id   String @db.Uuid
+  product_id String @db.Uuid
+
+  quantity     Int             @default(1)
+  unit_price   Decimal         @db.Decimal(10, 2)
+  subtotal     Decimal         @db.Decimal(10, 2)
+  note         String?         @db.Text
+  status       OrderItemStatus @default(WAITING)
+  started_at   DateTime? // When kitchen started preparing
+  completed_at DateTime? // When the dish is ready
+  served_at    DateTime? // When served to customer
+
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  // Relations
+  order      Order      @relation(fields: [order_id], references: [id])
+  product    Product    @relation(fields: [product_id], references: [id])
+  orderTaxes OrderTax[]
+
+  @@index([order_id])
+  @@index([product_id])
+  @@index([status])
+  @@map("order_items")
+}
+
+// --------------------- End of related Order models and enums ---------------------
+
+// --------------------- Start of related Tax models and enums ---------------------
+enum TaxType {
+  VAT
+  SERVICE_CHARGE
+  ENVIRONMENTAL
+  LOCAL_TAX
+  OTHER
+}
+
+enum TaxRateType {
+  PERCENTAGE // e.g., 10% VAT
+  FIXED_AMOUNT // e.g., 2000 VND per bag
+  PER_UNIT // e.g., 1000 VND per bottle
+}
+
+model TaxConfig {
+  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type            TaxType
+  name            String      @db.VarChar(100)
+  display_name    String      @db.VarChar(100)
+  description     String?     @db.Text
+  rate_type       TaxRateType
+  charge_rate     Decimal     @db.Decimal(10, 4) // Support percentages like 0.1000 (10%)
+  is_active       Boolean     @default(true)
+  is_included     Boolean     @default(false)
+  apply_after_vat Boolean     @default(false)
+  sort_order      Int         @default(0) @db.SmallInt
+  created_at      DateTime    @default(now())
+  updated_at      DateTime    @default(now()) @updatedAt
+
+  // Relations
+  orderTaxes           OrderTax[]
+  pricingSnapshotTaxes PricingSnapshotTax[]
+
+  @@index([type])
+  @@index([is_active])
+  @@map("tax_configs")
+}
+
+model OrderTax {
+  id            String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tax_id        String  @db.Uuid
+  order_id      String  @db.Uuid
+  order_item_id String? @db.Uuid // null when it applies to entire order
+
+  tax_name     String  @db.VarChar(100)
+  tax_rate     Decimal @db.Decimal(10, 4) // Support percentages like 0.1000 (10%)
+  taxable_base Decimal @db.Decimal(10, 2)
+  tax_amount   Decimal @db.Decimal(10, 2)
+  quantity     Int? // For PER_UNIT taxes (e.g. 3 bottles)
+
+  order      Order      @relation(fields: [order_id], references: [id])
+  tax        TaxConfig  @relation(fields: [tax_id], references: [id])
+  order_item OrderItem? @relation(fields: [order_item_id], references: [id])
+
+  @@index([order_id])
+  @@index([tax_id])
+  @@index([order_item_id])
+  @@map("order_taxes")
+}
+
+// --------------------- End of related Tax models and enums ---------------------
+
+// --------------------- Start of related Payment models and enums ---------------------
+
+enum PaymentProvider {
+  CASH
+  MOMO
+  VNPAY
+}
+
+enum PaymentFeeType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+  EXPIRED
+}
+
+model PaymentMethod {
+  id           String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  provider     PaymentProvider
+  name         String          @db.VarChar(100)
+  display_name String          @db.VarChar(100)
+  icon_url     String?         @db.Text
+  is_active    Boolean         @default(true)
+  fee_type     PaymentFeeType?
+  fee_value    Decimal?        @db.Decimal(10, 2)
+  sort_order   Int             @default(0) @db.SmallInt // For ordering in UI
+  created_at   DateTime        @default(now())
+  updated_at   DateTime        @default(now()) @updatedAt
+
+  // Relations
+  payments Payment[]
+
+  @@unique([name, display_name, provider])
+  @@index([is_active])
+  @@index([sort_order])
+  @@map("payment_methods")
+}
+
+model Payment {
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  method_id  String @db.Uuid
+  order_id   String @db.Uuid
+  created_by String @db.Uuid
+
+  amount           Decimal       @db.Decimal(10, 2)
+  fee_amount       Decimal?      @db.Decimal(10, 2)
+  reference_number String?       @db.VarChar(255) // Transaction ID from payment gateway
+  status           PaymentStatus @default(PENDING)
+  payment_url      String?       @db.Text
+  paid_at          DateTime?
+  expired_at       DateTime?
+  metadata         Json?
+  created_at       DateTime      @default(now())
+  updated_at       DateTime      @default(now()) @updatedAt
+
+  order  Order         @relation(fields: [order_id], references: [id])
+  method PaymentMethod @relation(fields: [method_id], references: [id])
+  user   User          @relation(fields: [created_by], references: [id])
+
+  @@index([order_id])
+  @@index([method_id])
+  @@index([status])
+  @@index([paid_at])
+  @@index([reference_number])
+  @@map("payments")
+}
+
+// --------------------- End of related Payment models and enums ---------------------
+
+// --------------------- Start of Recommendation System ---------------------
+enum Season {
+  SPRING
+  SUMMER
+  AUTUMN
+  WINTER
+}
+
+enum MealSession {
+  BREAKFAST
+  LUNCH
+  DINNER
+  SNACK
+}
+
+enum Taste {
+  SPICY
+  SWEET
+  SOUR
+  SALTY
+  BITTER
+}
+
+enum DietaryTag {
+  VEGETARIAN
+  VEGAN
+  GLUTEN_FREE
+  DAIRY_FREE
+  NUT_FREE
+  HALAL
+  KOSHER
+}
+
+model Cuisine {
+  id                  String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                String             @db.VarChar(100)
+  region              String?            @db.VarChar(100) // e.g., "Southeast Asia", "Mediterranean"
+  created_at          DateTime           @default(now())
+  updated_at          DateTime           @default(now()) @updatedAt
+  productAttributes   ProductAttribute[]
+  sessionPreference   SessionPreference? @relation(fields: [sessionPreferenceId], references: [id])
+  sessionPreferenceId String?            @db.Uuid
+
+  @@unique([name])
+  @@map("cuisines")
+}
+
+// Product attributes for Content-based Filtering
+model ProductAttribute {
+  id         String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cuisine_id String? @db.Uuid
+  product_id String  @db.Uuid
+
+  meal_session     MealSession?
+  taste_profile    Taste[]
+  dietary_tags     DietaryTag[]
+  preparation_time Int?         @db.SmallInt // Thời gian chế biến (phút)
+  spice_level      Int?         @db.SmallInt // 0-5 scale
+  is_seasonal      Boolean      @default(false)
+  season           Season?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  // Relations
+  cuisine Cuisine? @relation(fields: [cuisine_id], references: [id], onDelete: SetNull)
+  product Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
+
+  @@unique([product_id])
+  @@index([meal_session])
+  @@index([is_seasonal])
+  @@map("product_attributes")
+}
+
+// Sở thích session (học từ lịch sử order trong session)
+model SessionPreference {
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  session_id String @db.Uuid
+
+  // Preference scores (0-1) - learned in the current session
+  favorite_cuisine_types Cuisine[] // Top cuisine types in session
+  favorite_meal_sessions MealSession[] // Top meal types in session
+  favorite_taste_profile Taste[] // Preferred tastes
+  dietary_restrictions   DietaryTag[] // Dietary needs (if detected)
+  avg_spice_preference   Decimal?      @db.Decimal(3, 2) // Avg spice level (0-5)
+  avg_price_range        Decimal?      @db.Decimal(10, 2) // Avg spending in session
+
+  // Behavioral patterns trong session
+  order_count     Int       @default(0)
+  last_order_date DateTime?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  // Relations
+  session TableSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
+
+  @@unique([session_id])
+  @@index([session_id])
+  @@map("session_preferences")
+}
+
+// Ma trận Session-Product Interaction (cho Collaborative Filtering dựa trên session)
+model SessionProductInteraction {
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  session_id String @db.Uuid
+  product_id String @db.Uuid
+
+  // Interaction metrics trong session
+  view_count     Int       @default(0) // Số lần xem
+  order_count    Int       @default(0) // Số lần đặt
+  total_quantity Int       @default(0) // Tổng số lượng đã đặt
+  total_spent    Decimal   @default(0) @db.Decimal(10, 2) // Tổng chi tiêu
+  last_ordered   DateTime?
+
+  // Implicit feedback score
+  interaction_score Decimal @default(0) @db.Decimal(5, 4) // 0-1, normalized score
+
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  // Relations
+  session TableSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  product Product      @relation(fields: [product_id], references: [id], onDelete: Cascade)
+
+  @@unique([session_id, product_id])
+  @@index([session_id])
+  @@index([product_id])
+  @@index([interaction_score])
+  @@index([last_ordered])
+  @@map("session_product_interactions")
+}
+
+// Độ tương đồng giữa các sản phẩm (Content-based)
+model ProductSimilarity {
+  id           String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  product_a_id String @db.Uuid
+  product_b_id String @db.Uuid
+
+  similarity_score    Decimal @db.Decimal(5, 4) // Cosine similarity (0-1)
+  content_score       Decimal @db.Decimal(5, 4) // Content-based score
+  collaborative_score Decimal @db.Decimal(5, 4) // Collaborative score
+
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  // Relations
+  productA Product @relation("ProductSimilarityA", fields: [product_a_id], references: [id], onDelete: Cascade)
+  productB Product @relation("ProductSimilarityB", fields: [product_b_id], references: [id], onDelete: Cascade)
+
+  @@unique([product_a_id, product_b_id])
+  @@index([product_a_id])
+  @@index([product_b_id])
+  @@index([similarity_score])
+  @@map("product_similarities")
+}
+
+// Độ tương đồng giữa các session (Collaborative Filtering)
+model SessionSimilarity {
+  id           String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  session_a_id String @db.Uuid
+  session_b_id String @db.Uuid
+
+  similarity_score Decimal @db.Decimal(5, 4) // Cosine similarity (0-1)
+  common_products  Int     @default(0) // Số sản phẩm chung
+
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  // Relations
+  sessionA TableSession @relation("SessionSimilarityA", fields: [session_a_id], references: [id], onDelete: Cascade)
+  sessionB TableSession @relation("SessionSimilarityB", fields: [session_b_id], references: [id], onDelete: Cascade)
+
+  @@unique([session_a_id, session_b_id])
+  @@index([session_a_id])
+  @@index([session_b_id])
+  @@index([similarity_score])
+  @@map("session_similarities")
+}
+
+// Kết quả gợi ý (cache để tăng performance) - Dựa trên session
+model Recommendation {
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  session_id String @db.Uuid
+  product_id String @db.Uuid
+
+  // Scores from different algorithms
+  collaborative_score Decimal @db.Decimal(5, 4) // Score từ Collaborative Filtering
+  content_score       Decimal @db.Decimal(5, 4) // Score từ Content-based
+  hybrid_score        Decimal @db.Decimal(5, 4) // Combined score (weighted)
+  rank                Int     @db.SmallInt // Thứ hạng gợi ý
+
+  // Metadata
+  reason        String?  @db.Text // Lý do gợi ý (e.g., "Based on similar sessions")
+  model_version String   @db.VarChar(50) // Version của model
+  expires_at    DateTime // Cache expiration
+
+  created_at DateTime @default(now())
+
+  // Relations
+  session TableSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  product Product      @relation(fields: [product_id], references: [id], onDelete: Cascade)
+
+  @@unique([session_id, product_id, model_version])
+  @@index([session_id])
+  @@index([product_id])
+  @@index([hybrid_score])
+  @@index([expires_at])
+  @@index([rank])
+  @@map("recommendations")
+}
+
+// Log hành vi trong session (tracking cho recommendation system)
+model SessionBehaviorLog {
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  session_id String @db.Uuid
+  product_id String @db.Uuid
+
+  action       String @db.VarChar(50) // "VIEW", "ADD_TO_CART", "ORDER", "REMOVE", "SEARCH"
+  context      Json? // Additional context (e.g., search query, category browsed, recommendation source)
+  duration_sec Int?   @db.SmallInt // Thời gian xem (giây) - for engagement tracking
+
+  created_at DateTime @default(now())
+
+  // Relations
+  session TableSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  product Product      @relation(fields: [product_id], references: [id], onDelete: Cascade)
+
+  @@index([session_id])
+  @@index([product_id])
+  @@index([action])
+  @@index([created_at])
+  @@map("session_behavior_logs")
+}
+
+// --------------------- End of Recommendation System ---------------------
+
+// --------------------- Start of related Notification models and enums ---------------------
+enum NotificationSource {
+  SYSTEM
+  USER
+}
+
+enum NotificationType {
+  INGRIDIENT_ALERT
+  ANNOUCEMENT
+  CUSTOM
+}
+
+enum NotificationPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model Notification {
+  id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  group_id String? @db.Uuid
+
+  title      String               @db.VarChar(200)
+  content    String               @db.Text
+  source     NotificationSource
+  type       NotificationType
+  priority   NotificationPriority
+  created_by String?              @db.Uuid // null if SYSTEM
+  created_at DateTime             @default(now())
+
+  // Relations
+  targets           NotificationTarget[]
+  userNotifications UserNotification[]
+  group             Group?               @relation(fields: [group_id], references: [id], onDelete: Restrict)
+  sourceUser        User?                @relation("SentNotifications", fields: [created_by], references: [id], onDelete: Restrict)
+}
+
+model NotificationTarget {
+  notification_id String @db.Uuid
+  group_id        String @db.Uuid
+
+  // Relations
+  notification Notification @relation(fields: [notification_id], references: [id], onDelete: Restrict)
+  group        Group        @relation(fields: [group_id], references: [id], onDelete: Restrict)
+
+  @@id([notification_id, group_id])
+  @@map("notification_targets")
+}
+
+model UserNotification {
+  notification_id String @db.Uuid
+  user_id         String @db.Uuid
+
+  is_read      Boolean   @default(false)
+  read_at      DateTime?
+  delivered_at DateTime  @default(now())
+
+  notification Notification @relation(fields: [notification_id], references: [id], onDelete: Restrict)
+  user         User         @relation(fields: [user_id], references: [id], onDelete: Restrict)
+
+  @@id([notification_id, user_id])
+  @@map("user_notifications")
+}

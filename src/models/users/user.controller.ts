@@ -283,16 +283,7 @@ export class UserController {
     description: 'User password updated',
   })
   @ApiResponse({ status: 400, description: 'User not found' })
-  async updateUserPassword(
-    @Param('id') id: string,
-    @Body() dto: UpdatePasswordDto,
-  ) {
-    // if (dto.newPassword !== dto.newPasswordConfirmation) {
-    //   throw new BadRequestException(
-    //     'New password and confirmation do not match.',
-    //   );
-    // }
-
+  async updateUserPassword(@Param('id') id: string, @Body() dto: UpdatePasswordDto) {
     try {
       await this.updateUserService.updatePassword(id, dto.newPassword);
       return { message: 'User password has been successfully updated.' };
@@ -354,7 +345,7 @@ export class UserController {
     status: 400,
     description: 'User not found or account not locked',
   })
-  async unlockUser(@Query('id') id: string) {
+  async unlockUser(@Param('id') id: string) {
     try {
       await this.updateUserService.unlockUser(id);
       return { message: 'User account has been successfully unlocked.' };
